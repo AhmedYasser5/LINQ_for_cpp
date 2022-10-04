@@ -158,6 +158,13 @@ namespace Pipeline {
   template <typename T> class Composer : public Functor<T> {
     shared_ptr<Functor<T>> first, last;
 
+    template <typename C> inline vector<T> preprocess(const C &values) {
+      auto base = last->getPreviousFunction();
+      last->setPreviousFunction(make_shared<IterateFunc>(values));
+      auto result = processAll();
+      last->setPreviousFunction(base);
+      return result;
+    }
     inline vector<T> processAll() {
       vector<T> results;
       bool reset = true;
@@ -223,18 +230,10 @@ namespace Pipeline {
       return append(Pipeline::Where<T>(args...));
     }
     inline vector<T> ToList(const initializer_list<T> &values) {
-      auto base = last->getPreviousFunction();
-      last->setPreviousFunction(make_shared<IterateFunc>(values));
-      auto result = processAll();
-      last->setPreviousFunction(base);
-      return result;
+      return preprocess(values);
     }
     template <typename C> inline vector<T> ToList(const C &values) {
-      auto base = last->getPreviousFunction();
-      last->setPreviousFunction(make_shared<IterateFunc>(values));
-      auto result = processAll();
-      last->setPreviousFunction(base);
-      return result;
+      return preprocess(values);
     }
   };
 

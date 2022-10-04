@@ -4,10 +4,6 @@
 #include <vector>
 using namespace std;
 using Pipeline::Composer;
-using Pipeline::OrderBy;
-using Pipeline::Select;
-using Pipeline::Take;
-using Pipeline::Where;
 
 template <typename T> void print(const vector<T> &vec) {
   for (auto &it : vec)
