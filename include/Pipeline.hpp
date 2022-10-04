@@ -8,6 +8,8 @@
 
 namespace Pipeline {
 
+  using std::cbegin;
+  using std::cend;
   using std::deque;
   using std::function;
   using std::initializer_list;
@@ -187,7 +189,7 @@ namespace Pipeline {
 
     public:
       template <typename C>
-      Iterate(const C &values) : it(values.begin()), end(values.end()) {}
+      Iterate(const C &values) : it(cbegin(values)), end(cend(values)) {}
       Iterate(const Iterate &other) = default;
       Iterate(Iterate &&other) = default;
       Iterate &operator=(const Iterate &other) = default;
