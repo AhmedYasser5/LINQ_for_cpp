@@ -1,0 +1,3 @@
+*.exe
+build
+compile_flags.txt
