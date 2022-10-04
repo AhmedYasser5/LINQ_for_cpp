@@ -30,9 +30,20 @@ namespace Pipeline {
     virtual inline unique_ptr<T> operator()(const bool &reset) = 0;
   };
 
+  template <typename T> class Composer;
+
   template <typename T> class Select : public Functor<T> {
+    friend Composer<T>;
+
     shared_ptr<Functor<T>> previousFunction;
     function<T(const T &)> updater;
+
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
+    }
 
   public:
     Select(const function<T(const T &)> &updater)
@@ -41,12 +52,6 @@ namespace Pipeline {
     Select(Select<T> &&other) = default;
     Select<T> &operator=(const Select<T> &other) = default;
     Select<T> &operator=(Select<T> &&other) = default;
-    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
-      this->previousFunction = previousFunction;
-    }
-    shared_ptr<Functor<T>> getPreviousFunction() const {
-      return previousFunction;
-    }
     inline unique_ptr<T> operator()(const bool &reset) {
       auto result = previousFunction->operator()(reset);
       if (result != nullptr)
@@ -56,8 +61,17 @@ namespace Pipeline {
   };
 
   template <typename T> class Where : public Functor<T> {
+    friend Composer<T>;
+
     shared_ptr<Functor<T>> previousFunction;
     function<bool(const T &)> checker;
+
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
+    }
 
   public:
     Where(const function<bool(const T &)> &checker)
@@ -66,12 +80,6 @@ namespace Pipeline {
     Where(Where<T> &&other) = default;
     Where<T> &operator=(const Where<T> &other) = default;
     Where<T> &operator=(Where<T> &&other) = default;
-    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
-      this->previousFunction = previousFunction;
-    }
-    shared_ptr<Functor<T>> getPreviousFunction() const {
-      return previousFunction;
-    }
     inline unique_ptr<T> operator()(const bool &reset) {
       unique_ptr<T> result;
       bool needReset = reset;
@@ -84,9 +92,18 @@ namespace Pipeline {
   };
 
   template <typename T> class Take : public Functor<T> {
+    friend Composer<T>;
+
     shared_ptr<Functor<T>> previousFunction;
     size_t remaining;
     const size_t capacity;
+
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
+    }
 
   public:
     Take(const size_t &capacity)
@@ -95,12 +112,6 @@ namespace Pipeline {
     Take(Take<T> &&other) = default;
     Take<T> &operator=(const Take<T> &other) = default;
     Take<T> &operator=(Take<T> &&other) = default;
-    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
-      this->previousFunction = previousFunction;
-    }
-    shared_ptr<Functor<T>> getPreviousFunction() const {
-      return previousFunction;
-    }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset)
         remaining = capacity;
@@ -115,10 +126,19 @@ namespace Pipeline {
   };
 
   template <typename T> class OrderBy : public Functor<T> {
+    friend Composer<T>;
+
     shared_ptr<Functor<T>> previousFunction;
     function<bool(const T &, const T &)> comparer;
     bool processed;
     deque<unique_ptr<T>> results;
+
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
+    }
 
   public:
     OrderBy(const function<bool(const T &, const T &)> &comparer)
@@ -127,12 +147,6 @@ namespace Pipeline {
     OrderBy(OrderBy<T> &&other) = default;
     OrderBy<T> &operator=(const OrderBy<T> &other) = default;
     OrderBy<T> &operator=(OrderBy<T> &&other) = default;
-    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
-      this->previousFunction = previousFunction;
-    }
-    shared_ptr<Functor<T>> getPreviousFunction() const {
-      return previousFunction;
-    }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset) {
         processed = false;
@@ -183,6 +197,12 @@ namespace Pipeline {
       }
       return results;
     }
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      last->setPreviousFunction(previousFunction);
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return last->getPreviousFunction();
+    }
 
     class Iterate : public Functor<T> {
       typename vector<T>::const_iterator it, end;
@@ -211,12 +231,6 @@ namespace Pipeline {
     Composer(Composer<T> &&other) = default;
     Composer<T> &operator=(const Composer<T> &other) = default;
     Composer<T> &operator=(Composer<T> &&other) = default;
-    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
-      last->setPreviousFunction(previousFunction);
-    }
-    shared_ptr<Functor<T>> getPreviousFunction() const {
-      return last->getPreviousFunction();
-    }
     inline unique_ptr<T> operator()(const bool &reset) {
       return first->operator()(reset);
     }
