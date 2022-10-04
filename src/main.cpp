@@ -35,7 +35,13 @@ int main() {
                                Select<int>(subtract10), Where<int>(greater5),
                                Take<int>(5), OrderBy<int>(comparer),
                                Take<int>(2), OrderBy<int>(less<int>()));
-  auto vec = composed({1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+  auto in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  auto vec = composed.ToList(in);
+  for (auto &it : vec)
+    cout << it << ' ';
+  cout << endl;
+  composed = Compose<int>(std::move(composed), Select<int>(addOne));
+  vec = composed.ToList(in);
   for (auto &it : vec)
     cout << it << ' ';
   cout << endl;

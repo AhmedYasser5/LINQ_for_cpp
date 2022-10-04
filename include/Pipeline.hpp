@@ -24,6 +24,7 @@ namespace Pipeline {
     virtual inline unique_ptr<T> operator()(const bool &reset) = 0;
     virtual void
     setPreviousFunction(shared_ptr<Functor<T>> previousFunction) = 0;
+    virtual shared_ptr<Functor<T>> getPreviousFunction() const = 0;
   };
 
   template <typename T> class Select : public Functor<T> {
@@ -37,6 +38,9 @@ namespace Pipeline {
     ~Select() = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
     }
     inline unique_ptr<T> operator()(const bool &reset) {
       auto result = previousFunction->operator()(reset);
@@ -56,6 +60,9 @@ namespace Pipeline {
     Where(Where<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
     }
     inline unique_ptr<T> operator()(const bool &reset) {
       unique_ptr<T> result;
@@ -79,6 +86,9 @@ namespace Pipeline {
     Take(Take<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
     }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset)
@@ -106,6 +116,9 @@ namespace Pipeline {
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
     }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return previousFunction;
+    }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset) {
         processed = false;
@@ -131,7 +144,7 @@ namespace Pipeline {
     }
   };
 
-  template <typename T> class Compose {
+  template <typename T> class Compose : public Functor<T> {
     shared_ptr<Functor<T>> first, last;
 
     template <typename F> shared_ptr<Functor<T>> compose(F &&finalStep) {
@@ -156,7 +169,6 @@ namespace Pipeline {
         results.emplace_back(*result);
         reset = false;
       }
-      last->setPreviousFunction(nullptr);
       return results;
     }
 
@@ -167,6 +179,7 @@ namespace Pipeline {
       template <typename C>
       IterateFunc(const C &values) : it(values.begin()), end(values.end()) {}
       void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {}
+      shared_ptr<Functor<T>> getPreviousFunction() const { return nullptr; }
       inline unique_ptr<T> operator()(const bool &reset) {
         if (it == end)
           return nullptr;
@@ -178,21 +191,30 @@ namespace Pipeline {
 
   public:
     template <typename... ARGS> Compose(ARGS &&...args) {
-      last = compose(args...);
+      last = compose(move(args)...);
     }
-    inline vector<T> operator()(const initializer_list<T> &values) {
-      last->setPreviousFunction(make_shared<IterateFunc>(values));
-      return processAll();
+    inline unique_ptr<T> operator()(const bool &reset) {
+      return first->operator()(reset);
     }
-    template <typename C> inline vector<T> operator()(const C &values) {
-      last->setPreviousFunction(make_shared<IterateFunc>(values));
-      return processAll();
+    void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
+      last->setPreviousFunction(previousFunction);
+    }
+    shared_ptr<Functor<T>> getPreviousFunction() const {
+      return last->getPreviousFunction();
     }
     inline vector<T> ToList(const initializer_list<T> &values) {
-      return operator()(values);
+      auto base = last->getPreviousFunction();
+      last->setPreviousFunction(make_shared<IterateFunc>(values));
+      auto result = processAll();
+      last->setPreviousFunction(base);
+      return result;
     }
     template <typename C> inline vector<T> ToList(const C &values) {
-      return operator()(values);
+      auto base = last->getPreviousFunction();
+      last->setPreviousFunction(make_shared<IterateFunc>(values));
+      auto result = processAll();
+      last->setPreviousFunction(base);
+      return result;
     }
   };
 
