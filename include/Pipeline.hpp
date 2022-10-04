@@ -15,16 +15,17 @@ namespace Pipeline {
   using std::make_unique;
   using std::move;
   using std::shared_ptr;
+  using std::size_t;
   using std::unique_ptr;
   using std::vector;
 
   template <typename T> class Functor {
   public:
-    virtual ~Functor() {}
-    virtual inline unique_ptr<T> operator()(const bool &reset) = 0;
+    virtual ~Functor() = default;
     virtual void
     setPreviousFunction(shared_ptr<Functor<T>> previousFunction) = 0;
     virtual shared_ptr<Functor<T>> getPreviousFunction() const = 0;
+    virtual inline unique_ptr<T> operator()(const bool &reset) = 0;
   };
 
   template <typename T> class Select : public Functor<T> {
@@ -115,7 +116,7 @@ namespace Pipeline {
     shared_ptr<Functor<T>> previousFunction;
     function<bool(const T &, const T &)> comparer;
     bool processed;
-    deque<T> results;
+    deque<unique_ptr<T>> results;
 
   public:
     OrderBy(const function<bool(const T &, const T &)> &comparer)
@@ -142,14 +143,17 @@ namespace Pipeline {
           result = previousFunction->operator()(needReset);
           if (result == nullptr)
             break;
-          results.emplace_back(*result);
+          results.emplace_back(move(result));
           needReset = false;
         }
-        sort(results.begin(), results.end(), comparer);
+        sort(results.begin(), results.end(),
+             [this](const unique_ptr<T> &first, const unique_ptr<T> &second)
+                 -> bool { return comparer(*first, *second); });
       }
       if (results.empty())
         return nullptr;
-      auto result = make_unique<T>(results.front());
+      unique_ptr<T> result = nullptr;
+      result.swap(results.front());
       results.pop_front();
       return result;
     }
@@ -160,7 +164,7 @@ namespace Pipeline {
 
     template <typename C> inline vector<T> preprocess(const C &values) {
       auto base = last->getPreviousFunction();
-      last->setPreviousFunction(make_shared<IterateFunc>(values));
+      last->setPreviousFunction(make_shared<Iterate>(values));
       auto result = processAll();
       last->setPreviousFunction(base);
       return result;
@@ -172,18 +176,22 @@ namespace Pipeline {
         auto result = first->operator()(reset);
         if (result == nullptr)
           break;
-        results.emplace_back(*result);
+        results.emplace_back(move(*result));
         reset = false;
       }
       return results;
     }
 
-    class IterateFunc : public Functor<T> {
+    class Iterate : public Functor<T> {
       typename vector<T>::const_iterator it, end;
 
     public:
       template <typename C>
-      IterateFunc(const C &values) : it(values.begin()), end(values.end()) {}
+      Iterate(const C &values) : it(values.begin()), end(values.end()) {}
+      Iterate(const Iterate &other) = default;
+      Iterate(Iterate &&other) = default;
+      Iterate &operator=(const Iterate &other) = default;
+      Iterate &operator=(Iterate &&other) = default;
       void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {}
       shared_ptr<Functor<T>> getPreviousFunction() const { return nullptr; }
       inline unique_ptr<T> operator()(const bool &reset) {
@@ -201,14 +209,14 @@ namespace Pipeline {
     Composer(Composer<T> &&other) = default;
     Composer<T> &operator=(const Composer<T> &other) = default;
     Composer<T> &operator=(Composer<T> &&other) = default;
-    inline unique_ptr<T> operator()(const bool &reset) {
-      return first->operator()(reset);
-    }
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       last->setPreviousFunction(previousFunction);
     }
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return last->getPreviousFunction();
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      return first->operator()(reset);
     }
     template <typename F> Composer<T> &append(F func) {
       func.setPreviousFunction(first);
