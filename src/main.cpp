@@ -31,11 +31,10 @@ int main() {
     cout << "I am comparing " << x << " with " << y << endl;
     return x > y;
   };
-  auto composed = Pipeline::Compose<int>(
-      Pipeline::Select<int>(addOne), Pipeline::Select<int>(square),
-      Pipeline::Select<int>(subtract10), Pipeline::Where<int>(greater5),
-      Pipeline::Take<int>(5), Pipeline::OrderBy<int>(comparer),
-      Pipeline::Take<int>(2), Pipeline::OrderBy<int>(less<int>()));
+  auto composed = Compose<int>(Select<int>(addOne), Select<int>(square),
+                               Select<int>(subtract10), Where<int>(greater5),
+                               Take<int>(5), OrderBy<int>(comparer),
+                               Take<int>(2), OrderBy<int>(less<int>()));
   auto vec = composed({1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
   for (auto &it : vec)
     cout << it << ' ';
