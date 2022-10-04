@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <deque>
 #include <functional>
 #include <initializer_list>
@@ -13,7 +14,6 @@ namespace Pipeline {
   using std::make_shared;
   using std::make_unique;
   using std::move;
-  using std::remove_reference;
   using std::shared_ptr;
   using std::unique_ptr;
   using std::vector;
@@ -34,8 +34,10 @@ namespace Pipeline {
   public:
     Select(const function<T(const T &)> &updater)
         : previousFunction(nullptr), updater(updater) {}
+    Select(const Select<T> &other) = default;
     Select(Select<T> &&other) = default;
-    ~Select() = default;
+    Select<T> &operator=(const Select<T> &other) = default;
+    Select<T> &operator=(Select<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
     }
@@ -57,7 +59,10 @@ namespace Pipeline {
   public:
     Where(const function<bool(const T &)> &checker)
         : previousFunction(nullptr), checker(checker) {}
+    Where(const Where<T> &other) = default;
     Where(Where<T> &&other) = default;
+    Where<T> &operator=(const Where<T> &other) = default;
+    Where<T> &operator=(Where<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
     }
@@ -83,7 +88,10 @@ namespace Pipeline {
   public:
     Take(const size_t &capacity)
         : previousFunction(nullptr), remaining(capacity), capacity(capacity) {}
+    Take(const Take<T> &other) = default;
     Take(Take<T> &&other) = default;
+    Take<T> &operator=(const Take<T> &other) = default;
+    Take<T> &operator=(Take<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
     }
@@ -112,7 +120,10 @@ namespace Pipeline {
   public:
     OrderBy(const function<bool(const T &, const T &)> &comparer)
         : previousFunction(nullptr), comparer(comparer), processed(false) {}
+    OrderBy(const OrderBy<T> &other) = default;
     OrderBy(OrderBy<T> &&other) = default;
+    OrderBy<T> &operator=(const OrderBy<T> &other) = default;
+    OrderBy<T> &operator=(OrderBy<T> &&other) = default;
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
     }
@@ -144,21 +155,9 @@ namespace Pipeline {
     }
   };
 
-  template <typename T> class Compose : public Functor<T> {
+  template <typename T> class Composer : public Functor<T> {
     shared_ptr<Functor<T>> first, last;
 
-    template <typename F> shared_ptr<Functor<T>> compose(F &&finalStep) {
-      using FPure = typename remove_reference<F>::type;
-      first = make_unique<FPure>(move(finalStep));
-      return first;
-    }
-    template <typename F, typename... ARGS>
-    shared_ptr<Functor<T>> compose(F &&step, ARGS &&...others) {
-      using FPure = typename remove_reference<F>::type;
-      shared_ptr<Functor<T>> result = make_shared<FPure>(move(step));
-      compose(move(others)...)->setPreviousFunction(result);
-      return result;
-    }
     inline vector<T> processAll() {
       vector<T> results;
       bool reset = true;
@@ -190,9 +189,11 @@ namespace Pipeline {
     };
 
   public:
-    template <typename... ARGS> Compose(ARGS &&...args) {
-      last = compose(move(args)...);
-    }
+    Composer() : first(nullptr), last(nullptr) {}
+    Composer(const Composer<T> &other) = default;
+    Composer(Composer<T> &&other) = default;
+    Composer<T> &operator=(const Composer<T> &other) = default;
+    Composer<T> &operator=(Composer<T> &&other) = default;
     inline unique_ptr<T> operator()(const bool &reset) {
       return first->operator()(reset);
     }
@@ -201,6 +202,25 @@ namespace Pipeline {
     }
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return last->getPreviousFunction();
+    }
+    template <typename F> Composer<T> &append(F func) {
+      func.setPreviousFunction(first);
+      first = make_shared<F>(move(func));
+      if (last == nullptr)
+        last = first;
+      return *this;
+    }
+    template <typename... Args> Composer<T> &Select(const Args &...args) {
+      return append(Pipeline::Select<T>(args...));
+    }
+    template <typename... Args> Composer<T> &Take(const Args &...args) {
+      return append(Pipeline::Take<T>(args...));
+    }
+    template <typename... Args> Composer<T> &OrderBy(const Args &...args) {
+      return append(Pipeline::OrderBy<T>(args...));
+    }
+    template <typename... Args> Composer<T> &Where(const Args &...args) {
+      return append(Pipeline::Where<T>(args...));
     }
     inline vector<T> ToList(const initializer_list<T> &values) {
       auto base = last->getPreviousFunction();

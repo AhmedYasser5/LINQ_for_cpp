@@ -3,12 +3,17 @@
 #include <iostream>
 #include <vector>
 using namespace std;
-using Pipeline::Compose;
+using Pipeline::Composer;
 using Pipeline::OrderBy;
 using Pipeline::Select;
 using Pipeline::Take;
 using Pipeline::Where;
 
+template <typename T> void print(const vector<T> &vec) {
+  for (auto &it : vec)
+    cout << it << ' ';
+  cout << endl;
+}
 int main() {
   auto addOne = [](const int &x) -> int {
     cout << "I am adding 1 to " << x << endl;
@@ -31,19 +36,17 @@ int main() {
     cout << "I am comparing " << x << " with " << y << endl;
     return x > y;
   };
-  auto composed = Compose<int>(Select<int>(addOne), Select<int>(square),
-                               Select<int>(subtract10), Where<int>(greater5),
-                               Take<int>(5), OrderBy<int>(comparer),
-                               Take<int>(2), OrderBy<int>(less<int>()));
   auto in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-  auto vec = composed.ToList(in);
-  for (auto &it : vec)
-    cout << it << ' ';
-  cout << endl;
-  composed = Compose<int>(std::move(composed), Select<int>(addOne));
-  vec = composed.ToList(in);
-  for (auto &it : vec)
-    cout << it << ' ';
-  cout << endl;
+  auto out = Composer<int>()
+                 .Select(addOne)
+                 .Select(square)
+                 .Select(subtract10)
+                 .Where(greater5)
+                 .Take(5)
+                 .OrderBy(comparer)
+                 .Take(2)
+                 .OrderBy(less<int>())
+                 .ToList(in);
+  print(out);
   return 0;
 }
