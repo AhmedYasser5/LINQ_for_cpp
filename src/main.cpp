@@ -1,32 +1,15 @@
-#if DEBUG == 1
-#include "pch.hpp"
-#else
-#include <bits/stdc++.h>
-#endif
 #include "Pipeline.hpp"
+#include <initializer_list>
+#include <iostream>
+#include <vector>
 using namespace std;
-#define endl '\n'
-#define all(x) x.begin(), x.end()
-#define sz(v) v.size()
-#define nodebug 0
-#if DEBUG == 1 && nodebug == 0
-ofstream out("debug.txt");
-#define debug(x) out << #x << "=" << x << '\n' << flush
-#else
-#define debug(x)
-#endif
-typedef long long ll;
-const int dx[] = {-1, 0, 1, 0}, dy[] = {0, -1, 0, 1};
-const int N = 9e6 + 10, INF = 1e8, MOD = 1e9 + 7;
+using Pipeline::Compose;
+using Pipeline::OrderBy;
+using Pipeline::Select;
+using Pipeline::Take;
+using Pipeline::Where;
 
 int main() {
-  ios::sync_with_stdio(0);
-  cin.tie(0);
-  cout.tie(0);
-#if DEBUG == 1
-  freopen("in.txt", "r", stdin);
-  // freopen("out.txt", "w", stdout);
-#endif
   auto addOne = [](const int &x) -> int {
     cout << "I am adding 1 to " << x << endl;
     return x + 1;

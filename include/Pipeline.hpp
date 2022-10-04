@@ -139,13 +139,25 @@ namespace Pipeline {
       first = make_unique<FPure>(move(finalStep));
       return first;
     }
-
     template <typename F, typename... ARGS>
     shared_ptr<Functor<T>> compose(F &&step, ARGS &&...others) {
       using FPure = typename remove_reference<F>::type;
       shared_ptr<Functor<T>> result = make_shared<FPure>(move(step));
-      compose(others...)->setPreviousFunction(result);
+      compose(move(others)...)->setPreviousFunction(result);
       return result;
+    }
+    inline vector<T> processAll() {
+      vector<T> results;
+      bool reset = true;
+      while (true) {
+        auto result = first->operator()(reset);
+        if (result == nullptr)
+          break;
+        results.emplace_back(*result);
+        reset = false;
+      }
+      last->setPreviousFunction(nullptr);
+      return results;
     }
 
     class IterateFunc : public Functor<T> {
@@ -163,20 +175,6 @@ namespace Pipeline {
         return result;
       }
     };
-
-    inline vector<T> processAll() {
-      vector<T> results;
-      bool reset = true;
-      while (true) {
-        auto result = first->operator()(reset);
-        if (result == nullptr)
-          break;
-        results.emplace_back(*result);
-        reset = false;
-      }
-      last->setPreviousFunction(nullptr);
-      return results;
-    }
 
   public:
     template <typename... ARGS> Compose(ARGS &&...args) {
