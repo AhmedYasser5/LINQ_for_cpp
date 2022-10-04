@@ -217,16 +217,16 @@ namespace Pipeline {
         last = first;
       return *this;
     }
-    template <typename... Args> Composer<T> &Select(const Args &...args) {
+    template <typename... Args> Composer<T> &Select(Args &&...args) {
       return append(Pipeline::Select<T>(args...));
     }
-    template <typename... Args> Composer<T> &Take(const Args &...args) {
+    template <typename... Args> Composer<T> &Take(Args &&...args) {
       return append(Pipeline::Take<T>(args...));
     }
-    template <typename... Args> Composer<T> &OrderBy(const Args &...args) {
+    template <typename... Args> Composer<T> &OrderBy(Args &&...args) {
       return append(Pipeline::OrderBy<T>(args...));
     }
-    template <typename... Args> Composer<T> &Where(const Args &...args) {
+    template <typename... Args> Composer<T> &Where(Args &&...args) {
       return append(Pipeline::Where<T>(args...));
     }
     inline vector<T> ToList(const initializer_list<T> &values) {
