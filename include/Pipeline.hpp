@@ -20,12 +20,14 @@ namespace Pipeline {
   using std::move;
   using std::shared_ptr;
   using std::size_t;
+  using std::static_pointer_cast;
   using std::unique_ptr;
   using std::vector;
 
   template <typename T> class Functor {
   public:
     virtual ~Functor() = default;
+    virtual shared_ptr<Functor<T>> deepCopy() const = 0;
     virtual void
     setPreviousFunction(shared_ptr<Functor<T>> previousFunction) = 0;
     virtual shared_ptr<Functor<T>> getPreviousFunction() const = 0;
@@ -50,10 +52,25 @@ namespace Pipeline {
   public:
     Select(const function<T(const T &)> &updater)
         : previousFunction(nullptr), updater(updater) {}
-    Select(const Select<T> &other) = default;
+    Select(const Select<T> &other)
+        : previousFunction(other.previousFunction
+                               ? other.previousFunction->deepCopy()
+                               : nullptr),
+          updater(other.updater) {}
+    Select<T> &operator=(const Select<T> &other) {
+      updater = other.updater;
+      previousFunction =
+          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
+      return *this;
+    }
     Select(Select<T> &&other) = default;
-    Select<T> &operator=(const Select<T> &other) = default;
     Select<T> &operator=(Select<T> &&other) = default;
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Select<T>>(updater);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
     inline unique_ptr<T> operator()(const bool &reset) {
       auto result = previousFunction->operator()(reset);
       if (result != nullptr)
@@ -78,10 +95,25 @@ namespace Pipeline {
   public:
     Where(const function<bool(const T &)> &checker)
         : previousFunction(nullptr), checker(checker) {}
-    Where(const Where<T> &other) = default;
+    Where(const Where<T> &other)
+        : previousFunction(other.previousFunction
+                               ? other.previousFunction->deepCopy()
+                               : nullptr),
+          checker(other.checker) {}
+    Where<T> &operator=(const Where<T> &other) {
+      checker = other.checker;
+      previousFunction =
+          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
+      return *this;
+    }
     Where(Where<T> &&other) = default;
-    Where<T> &operator=(const Where<T> &other) = default;
     Where<T> &operator=(Where<T> &&other) = default;
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Where<T>>(checker);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
     inline unique_ptr<T> operator()(const bool &reset) {
       unique_ptr<T> result;
       bool needReset = reset;
@@ -110,10 +142,25 @@ namespace Pipeline {
   public:
     Take(const size_t &capacity)
         : previousFunction(nullptr), remaining(capacity), capacity(capacity) {}
-    Take(const Take<T> &other) = default;
+    Take(const Take<T> &other)
+        : previousFunction(other.previousFunction
+                               ? other.previousFunction->deepCopy()
+                               : nullptr),
+          remaining(other.capacity), capacity(other.capacity) {}
+    Take<T> &operator=(const Take<T> &other) {
+      remaining = capacity = other.capacity;
+      previousFunction =
+          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
+      return *this;
+    }
     Take(Take<T> &&other) = default;
-    Take<T> &operator=(const Take<T> &other) = default;
     Take<T> &operator=(Take<T> &&other) = default;
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Take<T>>(capacity);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset)
         remaining = capacity;
@@ -145,10 +192,27 @@ namespace Pipeline {
   public:
     OrderBy(const function<bool(const T &, const T &)> &comparer)
         : previousFunction(nullptr), comparer(comparer), processed(false) {}
-    OrderBy(const OrderBy<T> &other) = default;
+    OrderBy(const OrderBy<T> &other)
+        : previousFunction(other.previousFunction
+                               ? other.previousFunction->deepCopy()
+                               : nullptr),
+          comparer(other.comparer), processed(false) {}
+    OrderBy<T> &operator=(const OrderBy<T> &other) {
+      comparer = other.comparer;
+      processed = false;
+      results.clear();
+      previousFunction =
+          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
+      return *this;
+    }
     OrderBy(OrderBy<T> &&other) = default;
-    OrderBy<T> &operator=(const OrderBy<T> &other) = default;
     OrderBy<T> &operator=(OrderBy<T> &&other) = default;
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<OrderBy<T>>(comparer);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset) {
         processed = false;
@@ -218,6 +282,9 @@ namespace Pipeline {
       Iterate &operator=(Iterate &&other) = default;
       void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {}
       shared_ptr<Functor<T>> getPreviousFunction() const { return nullptr; }
+      shared_ptr<Functor<T>> deepCopy() const {
+        return make_shared<Iterate>(*this);
+      }
       inline unique_ptr<T> operator()(const bool &reset) {
         if (it == end)
           return nullptr;
@@ -229,19 +296,37 @@ namespace Pipeline {
 
   public:
     Composer() : first(nullptr), last(nullptr) {}
-    Composer(const Composer<T> &other) = default;
-    Composer(Composer<T> &&other) = default;
-    Composer<T> &operator=(const Composer<T> &other) = default;
-    Composer<T> &operator=(Composer<T> &&other) = default;
-    inline unique_ptr<T> operator()(const bool &reset) {
-      return first->operator()(reset);
+    Composer(const Composer<T> &other) {
+      auto copy = static_pointer_cast<Composer<T>>(other.deepCopy());
+      first = move(copy->first);
+      last = move(copy->last);
     }
+    Composer<T> &operator=(const Composer<T> &other) {
+      auto copy = static_pointer_cast<Composer<T>>(other.deepCopy());
+      first = move(copy->first);
+      last = move(copy->last);
+      return *this;
+    }
+    Composer(Composer<T> &&other) = default;
+    Composer<T> &operator=(Composer<T> &&other) = default;
     template <typename F> Composer<T> &append(F func) {
       func.setPreviousFunction(first);
       first = make_shared<F>(move(func));
       if (last == nullptr)
         last = first;
       return *this;
+    }
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Composer<T>>();
+      if (first) {
+        copy->last = copy->first = first->deepCopy();
+        while (copy->last->getPreviousFunction())
+          copy->last = copy->last->getPreviousFunction();
+      }
+      return copy;
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      return first->operator()(reset);
     }
     template <typename... Args> Composer<T> &Select(Args &&...args) {
       return append(Pipeline::Select<T>(args...));

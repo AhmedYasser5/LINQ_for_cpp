@@ -43,5 +43,13 @@ int main() {
                  .OrderBy(less<int>())
                  .ToList(in);
   print(out);
+  Composer<int> com;
+  com.Select(addOne).Select(addOne).Select(addOne);
+  Composer<int> com1 = com, com2 = com;
+  com1.Select(addOne).Select(addOne);
+  com2.Select(subtract10);
+  cout << com.ToList({1}).front() << endl;
+  cout << com1.ToList({1}).front() << endl;
+  cout << com2.ToList({1}).front() << endl;
   return 0;
 }
