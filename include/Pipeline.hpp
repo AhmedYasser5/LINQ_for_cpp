@@ -48,6 +48,18 @@ namespace Pipeline {
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return previousFunction;
     }
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Select<T>>(updater);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      auto result = previousFunction->operator()(reset);
+      if (result != nullptr)
+        result = make_unique<T>(updater(*result));
+      return result;
+    }
 
   public:
     Select(const function<T(const T &)> &updater)
@@ -65,18 +77,6 @@ namespace Pipeline {
     }
     Select(Select<T> &&other) = default;
     Select<T> &operator=(Select<T> &&other) = default;
-    shared_ptr<Functor<T>> deepCopy() const {
-      auto copy = make_shared<Select<T>>(updater);
-      if (previousFunction)
-        copy->previousFunction = previousFunction->deepCopy();
-      return copy;
-    }
-    inline unique_ptr<T> operator()(const bool &reset) {
-      auto result = previousFunction->operator()(reset);
-      if (result != nullptr)
-        result = make_unique<T>(updater(*result));
-      return result;
-    }
   };
 
   template <typename T> class Where : public Functor<T> {
@@ -90,6 +90,21 @@ namespace Pipeline {
     }
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return previousFunction;
+    }
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Where<T>>(checker);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      unique_ptr<T> result;
+      bool needReset = reset;
+      do {
+        result = previousFunction->operator()(needReset);
+        needReset = false;
+      } while (result != nullptr && !checker(*result));
+      return result;
     }
 
   public:
@@ -108,21 +123,6 @@ namespace Pipeline {
     }
     Where(Where<T> &&other) = default;
     Where<T> &operator=(Where<T> &&other) = default;
-    shared_ptr<Functor<T>> deepCopy() const {
-      auto copy = make_shared<Where<T>>(checker);
-      if (previousFunction)
-        copy->previousFunction = previousFunction->deepCopy();
-      return copy;
-    }
-    inline unique_ptr<T> operator()(const bool &reset) {
-      unique_ptr<T> result;
-      bool needReset = reset;
-      do {
-        result = previousFunction->operator()(needReset);
-        needReset = false;
-      } while (result != nullptr && !checker(*result));
-      return result;
-    }
   };
 
   template <typename T> class Take : public Functor<T> {
@@ -137,6 +137,23 @@ namespace Pipeline {
     }
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return previousFunction;
+    }
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Take<T>>(capacity);
+      if (previousFunction)
+        copy->previousFunction = previousFunction->deepCopy();
+      return copy;
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      if (reset)
+        remaining = capacity;
+      if (!remaining)
+        return nullptr;
+      --remaining;
+      auto result = previousFunction->operator()(reset);
+      if (result == nullptr)
+        remaining = 0;
+      return result;
     }
 
   public:
@@ -155,23 +172,6 @@ namespace Pipeline {
     }
     Take(Take<T> &&other) = default;
     Take<T> &operator=(Take<T> &&other) = default;
-    shared_ptr<Functor<T>> deepCopy() const {
-      auto copy = make_shared<Take<T>>(capacity);
-      if (previousFunction)
-        copy->previousFunction = previousFunction->deepCopy();
-      return copy;
-    }
-    inline unique_ptr<T> operator()(const bool &reset) {
-      if (reset)
-        remaining = capacity;
-      if (!remaining)
-        return nullptr;
-      --remaining;
-      auto result = previousFunction->operator()(reset);
-      if (result == nullptr)
-        remaining = 0;
-      return result;
-    }
   };
 
   template <typename T> class OrderBy : public Functor<T> {
@@ -188,25 +188,6 @@ namespace Pipeline {
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return previousFunction;
     }
-
-  public:
-    OrderBy(const function<bool(const T &, const T &)> &comparer)
-        : previousFunction(nullptr), comparer(comparer), processed(false) {}
-    OrderBy(const OrderBy<T> &other)
-        : previousFunction(other.previousFunction
-                               ? other.previousFunction->deepCopy()
-                               : nullptr),
-          comparer(other.comparer), processed(false) {}
-    OrderBy<T> &operator=(const OrderBy<T> &other) {
-      comparer = other.comparer;
-      processed = false;
-      results.clear();
-      previousFunction =
-          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
-      return *this;
-    }
-    OrderBy(OrderBy<T> &&other) = default;
-    OrderBy<T> &operator=(OrderBy<T> &&other) = default;
     shared_ptr<Functor<T>> deepCopy() const {
       auto copy = make_shared<OrderBy<T>>(comparer);
       if (previousFunction)
@@ -239,6 +220,25 @@ namespace Pipeline {
       results.pop_front();
       return result;
     }
+
+  public:
+    OrderBy(const function<bool(const T &, const T &)> &comparer)
+        : previousFunction(nullptr), comparer(comparer), processed(false) {}
+    OrderBy(const OrderBy<T> &other)
+        : previousFunction(other.previousFunction
+                               ? other.previousFunction->deepCopy()
+                               : nullptr),
+          comparer(other.comparer), processed(false) {}
+    OrderBy<T> &operator=(const OrderBy<T> &other) {
+      comparer = other.comparer;
+      processed = false;
+      results.clear();
+      previousFunction =
+          other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
+      return *this;
+    }
+    OrderBy(OrderBy<T> &&other) = default;
+    OrderBy<T> &operator=(OrderBy<T> &&other) = default;
   };
 
   template <typename T> class Composer : public Functor<T> {
@@ -268,6 +268,18 @@ namespace Pipeline {
     }
     shared_ptr<Functor<T>> getPreviousFunction() const {
       return last->getPreviousFunction();
+    }
+    shared_ptr<Functor<T>> deepCopy() const {
+      auto copy = make_shared<Composer<T>>();
+      if (first) {
+        copy->last = copy->first = first->deepCopy();
+        while (copy->last->getPreviousFunction())
+          copy->last = copy->last->getPreviousFunction();
+      }
+      return copy;
+    }
+    inline unique_ptr<T> operator()(const bool &reset) {
+      return first->operator()(reset);
     }
 
     class Iterate : public Functor<T> {
@@ -309,24 +321,13 @@ namespace Pipeline {
     }
     Composer(Composer<T> &&other) = default;
     Composer<T> &operator=(Composer<T> &&other) = default;
+    void clear() { first = last = nullptr; }
     template <typename F> Composer<T> &append(F func) {
       func.setPreviousFunction(first);
       first = make_shared<F>(move(func));
       if (last == nullptr)
         last = first;
       return *this;
-    }
-    shared_ptr<Functor<T>> deepCopy() const {
-      auto copy = make_shared<Composer<T>>();
-      if (first) {
-        copy->last = copy->first = first->deepCopy();
-        while (copy->last->getPreviousFunction())
-          copy->last = copy->last->getPreviousFunction();
-      }
-      return copy;
-    }
-    inline unique_ptr<T> operator()(const bool &reset) {
-      return first->operator()(reset);
     }
     template <typename... Args> Composer<T> &Select(Args &&...args) {
       return append(Pipeline::Select<T>(args...));
@@ -340,10 +341,10 @@ namespace Pipeline {
     template <typename... Args> Composer<T> &Where(Args &&...args) {
       return append(Pipeline::Where<T>(args...));
     }
-    inline vector<T> ToList(const initializer_list<T> &values) {
+    template <typename C> inline vector<T> ToList(const C &values) {
       return preprocess(values);
     }
-    template <typename C> inline vector<T> ToList(const C &values) {
+    inline vector<T> ToList(const initializer_list<T> &values) {
       return preprocess(values);
     }
   };

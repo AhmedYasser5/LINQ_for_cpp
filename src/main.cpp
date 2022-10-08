@@ -32,8 +32,8 @@ int main() {
     return x > y;
   };
   auto in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-  auto out = Composer<int>()
-                 .Select(addOne)
+  Composer<int> com;
+  auto out = com.Select(addOne)
                  .Select(square)
                  .Select(subtract10)
                  .Where(greater5)
@@ -43,7 +43,7 @@ int main() {
                  .OrderBy(less<int>())
                  .ToList(in);
   print(out);
-  Composer<int> com;
+  com.clear();
   com.Select(addOne).Select(addOne).Select(addOne);
   Composer<int> com1 = com, com2 = com;
   com1.Select(addOne).Select(addOne);
@@ -51,5 +51,9 @@ int main() {
   cout << com.ToList({1}).front() << endl;
   cout << com1.ToList({1}).front() << endl;
   cout << com2.ToList({1}).front() << endl;
+  com1.append(com);
+  com.append(com);
+  Composer<int> com3 = com;
+  cout << com3.ToList({1}).front() << endl;
   return 0;
 }
