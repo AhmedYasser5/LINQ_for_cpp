@@ -2,7 +2,6 @@
 #include <iostream>
 #include <vector>
 using namespace std;
-using Pipeline::Composer;
 
 template <typename T> void print(const vector<T> &vec) {
   for (auto &it : vec)
@@ -32,7 +31,7 @@ int main() {
     return x > y;
   };
   auto in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-  Composer<int> com;
+  Pipeline::Composer<int> com;
   auto out = com.Select(addOne)
                  .Select(square)
                  .Select(subtract10)
@@ -45,7 +44,7 @@ int main() {
   print(out);
   com.clear();
   com.Select(addOne).Select(addOne).Select(addOne);
-  Composer<int> com1 = com, com2 = com;
+  Pipeline::Composer<int> com1 = com, com2 = com;
   com1.Select(addOne).Select(addOne);
   com2.Select(subtract10);
   cout << com.ToList({1}).front() << endl;
@@ -53,7 +52,7 @@ int main() {
   cout << com2.ToList({1}).front() << endl;
   com1.append(com);
   com.append(com);
-  Composer<int> com3 = com;
+  Pipeline::Composer<int> com3 = com;
   cout << com3.ToList({1}).front() << endl;
   return 0;
 }

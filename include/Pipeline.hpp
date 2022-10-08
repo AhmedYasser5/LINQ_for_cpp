@@ -24,21 +24,33 @@ namespace Pipeline {
   using std::unique_ptr;
   using std::vector;
 
+  template <typename T> class Select;
+  template <typename T> class Take;
+  template <typename T> class Where;
+  template <typename T> class OrderBy;
+  template <typename T> class Composer;
+  template <typename T> class Iterate;
+
   template <typename T> class Functor {
-  public:
-    virtual ~Functor() = default;
+    friend Select<T>;
+    friend Take<T>;
+    friend Where<T>;
+    friend OrderBy<T>;
+    friend Composer<T>;
+    friend Iterate<T>;
+
+  protected:
     virtual shared_ptr<Functor<T>> deepCopy() const = 0;
     virtual void
     setPreviousFunction(shared_ptr<Functor<T>> previousFunction) = 0;
     virtual shared_ptr<Functor<T>> getPreviousFunction() const = 0;
     virtual inline unique_ptr<T> operator()(const bool &reset) = 0;
+
+  public:
+    virtual ~Functor() = default;
   };
 
-  template <typename T> class Composer;
-
   template <typename T> class Select : public Functor<T> {
-    friend Composer<T>;
-
     shared_ptr<Functor<T>> previousFunction;
     function<T(const T &)> updater;
 
@@ -80,8 +92,6 @@ namespace Pipeline {
   };
 
   template <typename T> class Where : public Functor<T> {
-    friend Composer<T>;
-
     shared_ptr<Functor<T>> previousFunction;
     function<bool(const T &)> checker;
 
@@ -126,8 +136,6 @@ namespace Pipeline {
   };
 
   template <typename T> class Take : public Functor<T> {
-    friend Composer<T>;
-
     shared_ptr<Functor<T>> previousFunction;
     size_t remaining;
     const size_t capacity;
@@ -175,8 +183,6 @@ namespace Pipeline {
   };
 
   template <typename T> class OrderBy : public Functor<T> {
-    friend Composer<T>;
-
     shared_ptr<Functor<T>> previousFunction;
     function<bool(const T &, const T &)> comparer;
     bool processed;
@@ -244,6 +250,30 @@ namespace Pipeline {
   template <typename T> class Composer : public Functor<T> {
     shared_ptr<Functor<T>> first, last;
 
+    class Iterate : public Functor<T> {
+      typename vector<T>::const_iterator it, end;
+
+    public:
+      template <typename C>
+      Iterate(const C &values) : it(cbegin(values)), end(cend(values)) {}
+      Iterate(const Iterate &other) = default;
+      Iterate(Iterate &&other) = default;
+      Iterate &operator=(const Iterate &other) = default;
+      Iterate &operator=(Iterate &&other) = default;
+      void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {}
+      shared_ptr<Functor<T>> getPreviousFunction() const { return nullptr; }
+      shared_ptr<Functor<T>> deepCopy() const {
+        return make_shared<Iterate>(*this);
+      }
+      inline unique_ptr<T> operator()(const bool &reset) {
+        if (it == end)
+          return nullptr;
+        auto result = make_unique<T>(*it);
+        ++it;
+        return result;
+      }
+    };
+
     template <typename C> inline vector<T> preprocess(const C &values) {
       auto base = last->getPreviousFunction();
       last->setPreviousFunction(make_shared<Iterate>(values));
@@ -282,30 +312,6 @@ namespace Pipeline {
       return first->operator()(reset);
     }
 
-    class Iterate : public Functor<T> {
-      typename vector<T>::const_iterator it, end;
-
-    public:
-      template <typename C>
-      Iterate(const C &values) : it(cbegin(values)), end(cend(values)) {}
-      Iterate(const Iterate &other) = default;
-      Iterate(Iterate &&other) = default;
-      Iterate &operator=(const Iterate &other) = default;
-      Iterate &operator=(Iterate &&other) = default;
-      void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {}
-      shared_ptr<Functor<T>> getPreviousFunction() const { return nullptr; }
-      shared_ptr<Functor<T>> deepCopy() const {
-        return make_shared<Iterate>(*this);
-      }
-      inline unique_ptr<T> operator()(const bool &reset) {
-        if (it == end)
-          return nullptr;
-        auto result = make_unique<T>(*it);
-        ++it;
-        return result;
-      }
-    };
-
   public:
     Composer() : first(nullptr), last(nullptr) {}
     Composer(const Composer<T> &other) {
@@ -323,8 +329,9 @@ namespace Pipeline {
     Composer<T> &operator=(Composer<T> &&other) = default;
     void clear() { first = last = nullptr; }
     template <typename F> Composer<T> &append(F func) {
-      func.setPreviousFunction(first);
-      first = make_shared<F>(move(func));
+      shared_ptr<Functor<T>> temp = make_shared<F>(move(func));
+      temp->setPreviousFunction(first);
+      first = temp;
       if (last == nullptr)
         last = first;
       return *this;
