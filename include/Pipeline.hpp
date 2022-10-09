@@ -138,7 +138,7 @@ namespace Pipeline {
   template <typename T> class Take : public Functor<T> {
     shared_ptr<Functor<T>> previousFunction;
     size_t remaining;
-    const size_t capacity;
+    const size_t _capacity;
 
     void setPreviousFunction(shared_ptr<Functor<T>> previousFunction) {
       this->previousFunction = previousFunction;
@@ -147,14 +147,14 @@ namespace Pipeline {
       return previousFunction;
     }
     shared_ptr<Functor<T>> deepCopy() const {
-      auto copy = make_shared<Take<T>>(capacity);
+      auto copy = make_shared<Take<T>>(_capacity);
       if (previousFunction)
         copy->previousFunction = previousFunction->deepCopy();
       return copy;
     }
     inline unique_ptr<T> operator()(const bool &reset) {
       if (reset)
-        remaining = capacity;
+        remaining = _capacity;
       if (!remaining)
         return nullptr;
       --remaining;
@@ -166,14 +166,14 @@ namespace Pipeline {
 
   public:
     Take(const size_t &capacity)
-        : previousFunction(nullptr), remaining(capacity), capacity(capacity) {}
+        : previousFunction(nullptr), remaining(capacity), _capacity(capacity) {}
     Take(const Take<T> &other)
         : previousFunction(other.previousFunction
                                ? other.previousFunction->deepCopy()
                                : nullptr),
-          remaining(other.capacity), capacity(other.capacity) {}
+          remaining(other._capacity), _capacity(other._capacity) {}
     Take<T> &operator=(const Take<T> &other) {
-      remaining = capacity = other.capacity;
+      remaining = _capacity = other._capacity;
       previousFunction =
           other.previousFunction ? other.previousFunction->deepCopy() : nullptr;
       return *this;
